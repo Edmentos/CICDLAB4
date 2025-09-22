@@ -6,3 +6,4 @@ class User(BaseModel):
     name: constr(min_length=2, max_length=50)
     email: EmailStr
     age: conint(gt=18)
+    student_id: constr(pattern=r'^S\d{7}$')
