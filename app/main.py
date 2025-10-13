@@ -37,3 +37,7 @@ def add_user(payload: UserCreate, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=409, detail="User already exists")
     return user
+
+@app.get("/api/health")
+def health_check():
+    return {"status": "ok"}
