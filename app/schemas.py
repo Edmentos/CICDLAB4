@@ -31,6 +31,20 @@ class UserRead(BaseModel):
     student_id: StudentIdStr
 
 
+class UserUpdate(BaseModel):
+    name: NameStr
+    email: EmailStr
+    age: AgeInt
+    student_id: StudentIdStr
+
+
+class UserPatch(BaseModel):
+    name: Optional[NameStr] = None
+    email: Optional[EmailStr] = None
+    age: Optional[AgeInt] = None
+    student_id: Optional[StudentIdStr] = None
+
+
 # ---------- Projects ----------
 class ProjectRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -61,6 +75,18 @@ class ProjectCreateForUser(BaseModel):
 
 class ProjectReadWithOwner(ProjectRead):
     owner: Optional["UserRead"] = None  # use selectinload(ProjectDB.owner) when querying
+
+
+class ProjectUpdate(BaseModel):
+    name: ProjectNameStr
+    description: Optional[DescStr] = None
+    owner_id: int
+
+
+class ProjectPatch(BaseModel):
+    name: Optional[ProjectNameStr] = None
+    description: Optional[DescStr] = None
+    owner_id: Optional[int] = None
 
 
 # ---------- Courses ----------
