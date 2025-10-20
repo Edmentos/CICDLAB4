@@ -6,14 +6,15 @@ from sqlalchemy.orm import selectinload
 from .database import engine, SessionLocal
 from .models import Base, UserDB, CourseDB, ProjectDB
 from .schemas import (
-    UserCreate, UserRead,
+    UserCreate, UserRead, UserUpdate, UserPatch,
     CourseCreate, CourseRead,
-    ProjectCreate, ProjectRead,
+    ProjectCreate, ProjectRead, ProjectUpdate, ProjectPatch,
     ProjectReadWithOwner, ProjectCreateForUser
 )
 
 app = FastAPI()
-Base.metadata.create_all(bind=engine)
+# Note: Table creation is handled by database migrations or in test fixtures
+# Base.metadata.create_all(bind=engine)
 
 
 def get_db():
@@ -155,3 +156,81 @@ def delete_user(user_id: int, db: Session = Depends(get_db)) -> Response:
     db.delete(user)  # <-- triggers cascade="all, delete-orphan" on projects
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# PUT /api/users/{user_id} - Full replacement
+@app.put("/api/users/{user_id}", response_model=UserRead)
+def update_user(user_id: int, payload: UserUpdate, db: Session = Depends(get_db)):
+    user = db.get(UserDB, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user.name = payload.name
+    user.email = payload.email
+    user.age = payload.age
+    user.student_id = payload.student_id
+    
+    commit_or_rollback(db, "User update failed")
+    db.refresh(user)
+    return user
+
+
+# PATCH /api/users/{user_id} - Partial update
+@app.patch("/api/users/{user_id}", response_model=UserRead)
+def partial_update_user(user_id: int, payload: UserPatch, db: Session = Depends(get_db)):
+    user = db.get(UserDB, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    update_data = payload.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(user, field, value)
+    
+    commit_or_rollback(db, "User update failed")
+    db.refresh(user)
+    return user
+
+
+# PUT /api/projects/{project_id} - Full replacement
+@app.put("/api/projects/{project_id}", response_model=ProjectRead)
+def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depends(get_db)):
+    project = db.get(ProjectDB, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Verify owner exists
+    if payload.owner_id != project.owner_id:
+        user = db.get(UserDB, payload.owner_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="Owner not found")
+    
+    project.name = payload.name
+    project.description = payload.description
+    project.owner_id = payload.owner_id
+    
+    commit_or_rollback(db, "Project update failed")
+    db.refresh(project)
+    return project
+
+
+# PATCH /api/projects/{project_id} - Partial update
+@app.patch("/api/projects/{project_id}", response_model=ProjectRead)
+def partial_update_project(project_id: int, payload: ProjectPatch, db: Session = Depends(get_db)):
+    project = db.get(ProjectDB, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    update_data = payload.model_dump(exclude_unset=True)
+    
+    # Verify owner exists if owner_id is being changed
+    if "owner_id" in update_data and update_data["owner_id"] != project.owner_id:
+        user = db.get(UserDB, update_data["owner_id"])
+        if not user:
+            raise HTTPException(status_code=404, detail="Owner not found")
+    
+    for field, value in update_data.items():
+        setattr(project, field, value)
+    
+    commit_or_rollback(db, "Project update failed")
+    db.refresh(project)
+    return project
